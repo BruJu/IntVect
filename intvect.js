@@ -20,54 +20,68 @@ const array_length = (() => {
 })();
 
 
-function randomArray(length) {
-    let a = [];
+// function randomArray(length) {
+//     let a = [];
+// 
+//     for (let i = 0 ; i != length ; ++i) {
+//         a.push(Math.floor(Math.random() * 1000000));
+//     }
+// 
+//     return a;
+// }
+// 
+// const randomlyGeneratedARray = randomArray(array_length);
 
-    for (let i = 0 ; i != length ; ++i) {
-        a.push(Math.floor(Math.random() * 1000000));
-    }
-
-    return a;
+function start_measure() {
+    const mem = get_vmsize();
+    const time = performance.now();
+    return [mem, time];
 }
 
-const randomlyGeneratedARray = randomArray(array_length);
+function stop_measure(start_values) {
+    const time = performance.now();
+    const mem = get_vmsize();
+    return [mem - start_values[0], (time - start_values[1]) / 1000];
+}
 
-function benchmarkMedianSearch(n, s, generator, medianSearcher) {
-    const memo_start = get_vmsize();
-    const time_start = performance.now();
+
+function benchmarkMedianSearch(pr, n, s, generator, medianSearcher) {
+    let gen_tmp = start_measure();
+    let random_values = new wasm.RandomValues(s);
+    let gen_meas = stop_measure(gen_tmp);
+
+    let fill_tmp = start_measure();
     let dataStructure = generator();
-    dataStructure.fill(randomlyGeneratedARray);
 
-    const time_fill = performance.now();
-    const memo_fill = get_vmsize();
+    dataStructure.fill_with_v(random_values);
+    let fill_meas = stop_measure(fill_tmp);
 
+    let med_tmp = start_measure();
     let v = medianSearcher(dataStructure);
+    let med_meas = stop_measure(med_tmp);
 
-    const time_median = performance.now();
-    const memo_median = get_vmsize();
-
-    let res = [
-        (time_fill - time_start) / 1000,
-        memo_fill - memo_start,
-        (time_median - time_fill) / 1000,
-        memo_median - memo_fill
-    ];
-
-    console.log(`JS,${n},${v},`+array_length+`,${res[0]},${res[1]},${res[2]},${res[3]}`);
+    if (pr)
+    console.log(`JS,${n},${v},`+array_length
+    + `,${gen_meas[0]},${fill_meas[0]},${med_meas[0]}`
+    + `,${gen_meas[1]},${fill_meas[1]},${med_meas[1]}`);
 }
 
 
-benchmarkMedianSearch(
+let i = 0;
+
+while (i != 2) {
+
+benchmarkMedianSearch(i == 1,
     "IntVector-V", array_length, () => new wasm.IntVector(),
     intVect => intVect.sum_inf_to_v()
 );
 
-benchmarkMedianSearch(
+benchmarkMedianSearch(i == 1,
     "IntVector-T", array_length, () => new wasm.IntVector(),
     intVect => intVect.sum_inf_to_t()
 );
 
-benchmarkMedianSearch(
+benchmarkMedianSearch(i == 1,
     "IntVector-CV", array_length, () => new wasm.IntVector(),
     intVect => {
         let iv = wasm.IntVector.copy(intVect);
@@ -75,7 +89,7 @@ benchmarkMedianSearch(
     }
 );
 
-benchmarkMedianSearch(
+benchmarkMedianSearch(i == 1,
     "IntVector-CT", array_length, () => new wasm.IntVector(),
     intVect => {
         let iv = wasm.IntTree.using(intVect);
@@ -85,17 +99,17 @@ benchmarkMedianSearch(
 
 
 
-benchmarkMedianSearch(
+benchmarkMedianSearch(i == 1,
     "IntTree-V", array_length, () => new wasm.IntTree(),
     intVect => intVect.sum_inf_to_v()
 );
 
-benchmarkMedianSearch(
+benchmarkMedianSearch(i == 1,
     "IntTree-T", array_length, () => new wasm.IntTree(),
     intVect => intVect.sum_inf_to_t()
 );
 
-benchmarkMedianSearch(
+benchmarkMedianSearch(i == 1,
     "IntTree-CV", array_length, () => new wasm.IntTree(),
     intVect => {
         let iv = wasm.IntVector.using(intVect);
@@ -103,10 +117,14 @@ benchmarkMedianSearch(
     }
 );
 
-benchmarkMedianSearch(
+benchmarkMedianSearch(i == 1, 
     "IntTree-CT", array_length, () => new wasm.IntTree(),
     intVect => {
         let iv = wasm.IntTree.copy(intVect);
         return iv.sum_inf_to_t();
     }
 );
+
+i = i + 1;
+}
+

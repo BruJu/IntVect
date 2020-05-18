@@ -2,7 +2,6 @@ extern crate wasm_example;
 
 use wasm_example::intvect::IntTree;
 use wasm_example::intvect::IntVector;
-use wasm_example::intvect::SumComputer;
 
 use std::{env, fs};
 use std::str::FromStr;
@@ -12,9 +11,6 @@ use regex::Regex;
 
 extern crate time;
 use time::OffsetDateTime;
-
-extern crate rand;
-use crate::rand::Rng;
 
 
 fn get_vmsize() -> usize {
@@ -32,100 +28,102 @@ fn get_array_length() -> usize {
     10_usize.pow(number_of_zero)
 }
 
-fn get_random_vector(array_length: usize) -> Vec<i64> {
-    let mut rng = rand::thread_rng();
+fn start_measure() -> (usize, time::OffsetDateTime) {
+    let a = get_vmsize();
+    let b = OffsetDateTime::now_utc();
 
-    let mut numbers = Vec::<i64>::with_capacity(array_length);
-    for _ in 0..array_length {
-        numbers.push(rng.gen_range(0, 1000000));
-    }
-
-    numbers
+    (a, b)
 }
 
-fn measure<F, D, M>(
-    name: &str, numbers: &Vec<i64>, f : F, m : M)
+fn stop_measure(t: (usize, time::OffsetDateTime)) -> (usize, f64) {
+    let b = OffsetDateTime::now_utc();
+    let a = get_vmsize();
+
+    (a - t.0, (b - t.1).as_seconds_f64())
+}
+
+
+fn measure<F, D, M>(b: &bool,
+    name: &str, size: usize, f : F, m : M)
     where F: Fn() -> D,
           M: Fn(&D) -> i64,
           D: wasm_example::intvect::SumComputer
 {
-    let m0 = get_vmsize();
-    let t0 = OffsetDateTime::now_utc();
+    let blou = start_measure();
+    let random_values = wasm_example::intvect::RandomValues::new(size);
+    let (m_gen, t_gen) = stop_measure(blou);
 
+    let blou = start_measure();
     let mut k = f();
-    k.fill_with_vec(numbers);
+    k.fill_with_v(&random_values);
+    let (m_fill, t_fill) = stop_measure(blou);
 
-    let t1 = OffsetDateTime::now_utc();
-    let m1 = get_vmsize();
-    let t2 = OffsetDateTime::now_utc();
-
+    let blou = start_measure();
     let value = m(&k);
-
-    let t3 = OffsetDateTime::now_utc();
-    let m3 = get_vmsize();
-
-    let time_fill = (t1 - t0).as_seconds_f64();
-    let time_median = (t3 - t2).as_seconds_f64();
-    let mem_fill = m1 - m0;
-    let mem_median = m3 - m1;
+    let (m_median, t_median) = stop_measure(blou);
     
-    println!("RS,{},{},{},{},{},{},{}", name, value, numbers.len(), time_fill, mem_fill, time_median, mem_median);
+    if *b {
+    println!("RS,{},{},{},{},{},{},{},{},{}", name, value, size, m_gen, m_fill, m_median, t_gen, t_fill, t_median);
+    }
 }
 
 fn main() {
     let size = get_array_length();
-    let numbers = get_random_vector(size);
 
-    measure("IntVector-V", &numbers, 
-        || IntVector::new(),
-        |iv| iv.sum_inf_to_v()
-    );
+    let n = [false, true];
 
-    measure("IntVector-T", &numbers, 
-        || IntVector::new(),
-        |iv| iv.sum_inf_to_t()
-    );
+    for b in n.iter() {
+        measure(b, "IntVector-V", size, 
+            || IntVector::new(),
+            |iv| iv.sum_inf_to_v()
+        );
 
-    measure("IntVector-CV", &numbers, 
-        || IntVector::new(),
-        |iv| {
-            let iv = IntVector::copy(iv);
-            iv.sum_inf_to_v()
-        }
-    );
+        measure(b, "IntVector-T", size, 
+            || IntVector::new(),
+            |iv| iv.sum_inf_to_t()
+        );
 
-    measure("IntVector-CT", &numbers, 
-        || IntVector::new(),
-        |iv| {
-            let iv = IntTree::using(iv);
-            iv.sum_inf_to_t()
-        }
-    );
+        measure(b, "IntVector-CV", size, 
+            || IntVector::new(),
+            |iv| {
+                let iv = IntVector::copy(iv);
+                iv.sum_inf_to_v()
+            }
+        );
+
+        measure(b, "IntVector-CT", size, 
+            || IntVector::new(),
+            |iv| {
+                let iv = IntTree::using(iv);
+                iv.sum_inf_to_t()
+            }
+        );
 
 
-    measure("IntTree-V", &numbers, 
-        || IntTree::new(),
-        |iv| iv.sum_inf_to_v()
-    );
+        measure(b, "IntTree-V", size, 
+            || IntTree::new(),
+            |iv| iv.sum_inf_to_v()
+        );
 
-    measure("IntTree-T", &numbers, 
-        || IntTree::new(),
-        |iv| iv.sum_inf_to_t()
-    );
+        measure(b, "IntTree-T", size, 
+            || IntTree::new(),
+            |iv| iv.sum_inf_to_t()
+        );
 
-    measure("IntTree-CV", &numbers, 
-        || IntTree::new(),
-        |iv| {
-            let iv = IntVector::using(iv);
-            iv.sum_inf_to_v()
-        }
-    );
+        measure(b, "IntTree-CV", size, 
+            || IntTree::new(),
+            |iv| {
+                let iv = IntVector::using(iv);
+                iv.sum_inf_to_v()
+            }
+        );
 
-    measure("IntTree-CT", &numbers, 
-        || IntTree::new(),
-        |iv| {
-            let iv = IntTree::copy(iv);
-            iv.sum_inf_to_t()
-        }
-    );
+        measure(b, "IntTree-CT", size, 
+            || IntTree::new(),
+            |iv| {
+                let iv = IntTree::copy(iv);
+                iv.sum_inf_to_t()
+            }
+        );
+    }
 }
